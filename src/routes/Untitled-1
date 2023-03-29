@@ -1,0 +1,182 @@
+curl https://raw.githubusercontent.com/habitat-sh/habitat/master/components/hab/install.sh \ | sudo bash
+
+hab pkg install chef/automate-backend-deployment --binlink --force
+
+cd /hab/a2_deploy_workspace/
+
+cat <<EOT >> manifest.json
+{
+  "schema_version": "1",
+  "build": "latest",
+  "hab": [
+    "core/hab/1.6.521/20220603154827",
+    "core/hab-sup/1.6.521/20220603161331",
+    "core/hab-launcher/16260/20220603161305"
+  ],
+  "packages": [
+    "chef/automate-cli/0.1.0/20220525115858",
+    "chef/automate-backend-pgleaderchk/1.0.22/20201118194223",
+    "chef/automate-backend-ctl/1.0.22/20201118193951",
+    "chef/automate-backend-metricbeat/1.0.22/20201118194223",
+    "chef/automate-backend-haproxy/1.0.22/20201118194223",
+    "chef/automate-backend-elasticsearch/1.0.22/20201118194201",
+    "chef/automate-backend-curator/1.0.22/20201118193951",
+    "chef/automate-backend-journalbeat/1.0.22/20201118194223",
+    "chef/automate-backend-postgresql/1.0.22/20201118194223",
+    "chef/automate-backend-deployment/1.0.22/20201118194445",
+    "chef/automate-backend-elasticsidecar/1.0.22/20201118194223",
+    "chef/automate-backend-kibana/1.0.22/20201118194223"
+  ]
+}
+EOT
+
+
+
+cat <<EOT >> a2ha.rb
+secrets_key_file "/etc/chef-automate/secrets.key"
+secrets_store_file "secrets.json"
+workspace_path "/hab/a2_deploy_workspace"
+architecture "existing_nodes"
+ssh_user "ec2-user"
+ssh_key_file "/home/ec2-user/a2ha-jay-singapore.pem"
+# sudo_password ""
+backup_mount "/mnt/automate_backups"
+# habitat_uid_gid ""
+###############################################################
+### Automate frontend node related settings                 ###
+###############################################################
+automate do
+  # admin_password ""
+  ### Leave commented out if using AWS infrastructure
+  fqdn "A2-d53bb107-automate-lb-567253744.ap-southeast-1.elb.amazonaws.com"
+  instance_count 1
+  ### Uncomment and set this value if the teams service
+  ### port (default: 10128) conflicts with another service.
+  # teams_port ""
+  config_file "configs/automate.toml"
+end
+
+###############################################################
+### Chef Server frontend node related settings              ###
+###############################################################
+chef_server do
+  instance_count 1
+end
+
+###############################################################
+### Elasticsearch related settings                          ###
+###############################################################
+elasticsearch do
+  instance_count 3
+end
+
+###############################################################
+### PostgreSQL related settings                             ###
+###############################################################
+postgresql do
+  instance_count 3
+end
+
+###############################################################
+### Only applies when using an existing node architecture   ###
+###############################################################
+existing_nodes do
+  automate_ips ["10.1.0.61"]
+  automate_private_ips ["10.1.0.61"]
+  chef_server_ips ["10.1.0.74"]
+  chef_server_private_ips ["10.1.0.74"]
+  elasticsearch_ips ["175.41.184.237",
+  "54.151.183.73",
+  "18.142.140.196"]
+  elasticsearch_private_ips ["10.1.0.60",
+  "10.1.1.17",
+  "10.1.2.231"]
+  postgresql_ips ["10.1.0.210",
+  "10.1.1.196",
+  "10.1.2.216"]
+  postgresql_private_ips ["10.1.0.210",
+  "10.1.1.196",
+  "10.1.2.216"]
+end
+EOT
+
+cd terraform
+
+cat <<EOT >> a2ha_aib_be.auto.tfvars
+backend_aib_dest_file = "/var/tmp/backend-20220223121207.aib"
+backend_aib_local_file = "backend-20220223121207.aib"
+EOT
+
+
+cat <<EOT >> a2ha_aib_fe.auto.tfvars
+frontend_aib_dest_file = "/var/tmp/frontend-20220329091442.aib"
+frontend_aib_local_file = "frontend-20220329091442.aib"
+EOT
+
+
+cat <<EOT >> a2ha_manifest.auto.tfvars
+pgleaderchk_pkg_ident = "chef/automate-backend-pgleaderchk/1.0.22/20201118194223"
+postgresql_pkg_ident = "chef/automate-backend-postgresql/1.0.22/20201118194223"
+proxy_pkg_ident = "chef/automate-backend-haproxy/1.0.22/20201118194223"
+journalbeat_pkg_ident = "chef/automate-backend-journalbeat/1.0.22/20201118194223"
+metricbeat_pkg_ident = "chef/automate-backend-metricbeat/1.0.22/20201118194223"
+kibana_pkg_ident = "chef/automate-backend-kibana/1.0.22/20201118194223"
+elasticsearch_pkg_ident = "chef/automate-backend-elasticsearch/1.0.22/20201118194201"
+elasticsidecar_pkg_ident = "chef/automate-backend-elasticsidecar/1.0.22/20201118194223"
+curator_pkg_ident = "chef/automate-backend-curator/1.0.22/20201118193951"
+EOT
+
+
+cd
+
+
+curl https://packages.chef.io/files/current/automate/20220310123121/chef-automate_linux_amd64.zip | gunzip - > chef-automate && chmod +x chef-automate
+
+cat <<EOT >> manifest.json
+{
+  "schema_version": "1",
+  "build": "latest",
+  "hab": [
+    "core/hab/1.6.521/20220603154827",
+    "core/hab-sup/1.6.521/20220603161331",
+    "core/hab-launcher/16260/20220603161305"
+  ],
+  "packages": [
+    "chef/automate-cli/0.1.0/20220525115858",
+    "chef/automate-backend-pgleaderchk/1.0.22/20201118194223",
+    "chef/automate-backend-ctl/1.0.22/20201118193951",
+    "chef/automate-backend-metricbeat/1.0.22/20201118194223",
+    "chef/automate-backend-haproxy/1.0.22/20201118194223",
+    "chef/automate-backend-elasticsearch/1.0.22/20201118194201",
+    "chef/automate-backend-curator/1.0.22/20201118193951",
+    "chef/automate-backend-journalbeat/1.0.22/20201118194223",
+    "chef/automate-backend-postgresql/1.0.22/20201118194223",
+    "chef/automate-backend-deployment/1.0.22/20201118194445",
+    "chef/automate-backend-elasticsidecar/1.0.22/20201118194223",
+    "chef/automate-backend-kibana/1.0.22/20201118194223"
+  ]
+}
+EOT
+
+./chef-automate airgap bundle create -m manifest.json
+
+mv automate-latest.aib backend-20220223121207.aib
+
+tail -c +8 backend-20220223121207.aib > temp && cat temp > backend-20220223121207.aib
+
+hab pkg exec core/coreutils md5sum  backend-20220223121207.aib >  backend-20220223121207.aib.md5
+
+wget https://packages.chef.io/manifests/current/automate/20220322122400.json
+
+./chef-automate airgap bundle create -m 20220322122400.json
+
+mv automate-20220322122400.aib frontend-20220322122400.aib
+
+hab pkg exec core/coreutils md5sum  frontend-20220322122400.aib >  frontend-20220322122400.aib.md5
+
+mv frontend-20220322122400.aib frontend-20220322122400.aib.md5 backend-20220223121207.aib backend-20220223121207.aib.md5 /hab/a2_deploy_workspace/terraform/transfer_files/
+
+
+
+sudo sysctl -w vm.max_map_count=262144
+sudo sysctl -w vm.dirty_expire_centisecs=20000
